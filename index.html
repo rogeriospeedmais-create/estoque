@@ -1,0 +1,1092 @@
+<!DOCTYPE html>
+<html lang="pt-BR">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Controle de Estoque - TI</title>
+  <!-- Tailwind CSS para design moderno e responsivo -->
+  <script src="https://cdn.tailwindcss.com"></script>
+  <!-- FontAwesome para ícones -->
+  <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css">
+  <script>
+    tailwind.config = {
+      darkMode: 'class',
+      theme: {
+        extend: {
+          colors: {
+            brand: {
+              50: '#eff6ff',
+              100: '#dbeafe',
+              500: '#3b82f6',
+              600: '#2563eb',
+              700: '#1d4ed8',
+              800: '#1e40af',
+              900: '#1e3a8a',
+            }
+          }
+        }
+      }
+    }
+  </script>
+</head>
+<body class="bg-slate-100 dark:bg-slate-900 text-slate-800 dark:text-slate-100 min-h-screen transition-colors duration-200">
+  <div class="flex flex-col min-h-screen">
+
+    <!-- Header Principal -->
+    <header class="bg-white dark:bg-slate-800 border-b border-slate-200 dark:border-slate-700 shadow-sm sticky top-0 z-20">
+      <div class="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
+        <div class="flex justify-between h-16 items-center">
+          <!-- Logo & Título -->
+          <div class="flex items-center space-x-3">
+            <div class="bg-brand-600 text-white p-2.5 rounded-xl shadow-md shadow-brand-500/20">
+              <i class="fa-solid fa-boxes-stacked text-xl"></i>
+            </div>
+            <div>
+              <h1 class="font-bold text-lg leading-tight text-slate-900 dark:text-white">Estoque TI</h1>
+              <p class="text-xs text-slate-500 dark:text-slate-400">Controle de Equipamentos de Informática</p>
+            </div>
+          </div>
+
+          <!-- Ações Superiores & Tema -->
+          <div class="flex items-center space-x-3">
+            <!-- Indicador de Alerta Rápido -->
+            <div id="lowStockBadge" class="hidden sm:flex items-center space-x-2 bg-amber-50 dark:bg-amber-950/40 text-amber-700 dark:text-amber-400 px-3 py-1.5 rounded-lg border border-amber-200 dark:border-amber-800 text-xs font-semibold">
+              <i class="fa-solid fa-triangle-exclamation animate-pulse"></i>
+              <span id="lowStockCountText">0 itens críticos</span>
+            </div>
+
+            <!-- Botão de Alternar Tema -->
+            <button id="themeToggle" class="p-2 rounded-lg text-slate-500 hover:text-slate-700 dark:text-slate-400 dark:hover:text-slate-200 hover:bg-slate-100 dark:hover:bg-slate-700 transition-colors">
+              <i id="themeIcon" class="fa-solid fa-moon text-lg"></i>
+            </button>
+          </div>
+        </div>
+
+        <!-- Indicador de Sincronização Cloud Firestore -->
+        <div class="flex items-center justify-between py-1 px-1 text-xs border-t border-slate-100 dark:border-slate-700/60 text-slate-500 dark:text-slate-400">
+          <div class="flex items-center space-x-2">
+            <span id="cloudStatusDot" class="w-2 h-2 rounded-full bg-amber-500 animate-pulse"></span>
+            <span id="cloudStatusText">Conectando ao banco de dados online...</span>
+          </div>
+          <span class="hidden sm:inline text-[10px] opacity-75">Sincronização em tempo real ativada</span>
+        </div>
+
+        <!-- Menu de Abas -->
+        <nav class="flex space-x-2 border-t border-slate-100 dark:border-slate-700/60 overflow-x-auto py-2 scrollbar-none">
+          <button data-tab="dashboard" class="tab-btn px-4 py-2 rounded-lg text-sm font-medium transition-all flex items-center space-x-2 whitespace-nowrap bg-brand-600 text-white shadow-sm">
+            <i class="fa-solid fa-[#fa-chart-pie] fa-chart-pie"></i>
+            <span>Painel & Estoque</span>
+          </button>
+          <button data-tab="movements" class="tab-btn px-4 py-2 rounded-lg text-sm font-medium text-slate-600 dark:text-slate-400 hover:bg-slate-200/60 dark:hover:bg-slate-700/50 transition-all flex items-center space-x-2 whitespace-nowrap">
+            <i class="fa-solid fa-right-left"></i>
+            <span>Entrada / Saída</span>
+          </button>
+          <button data-tab="logs" class="tab-btn px-4 py-2 rounded-lg text-sm font-medium text-slate-600 dark:text-slate-400 hover:bg-slate-200/60 dark:hover:bg-slate-700/50 transition-all flex items-center space-x-2 whitespace-nowrap">
+            <i class="fa-solid fa-clock-rotate-left"></i>
+            <span>Histórico de Logs</span>
+          </button>
+          <button data-tab="settings" class="tab-btn px-4 py-2 rounded-lg text-sm font-medium text-slate-600 dark:text-slate-400 hover:bg-slate-200/60 dark:hover:bg-slate-700/50 transition-all flex items-center space-x-2 whitespace-nowrap">
+            <i class="fa-solid fa-gear"></i>
+            <span>Configurações</span>
+          </button>
+        </nav>
+      </div>
+    </header>
+
+    <!-- Conteúdo Principal -->
+    <main class="flex-grow max-w-7xl w-full mx-auto px-4 sm:px-6 lg:px-8 py-6">
+
+      <!-- Notificação / Mensagem de Alerta Flutuante (Toast Container) -->
+      <div id="toastContainer" class="fixed bottom-5 right-5 z-50 flex flex-col space-y-2 pointer-events-none"></div>
+
+      <!-- ABA 1: PAINEL & ESTOQUE -->
+      <section id="tab-dashboard" class="tab-content space-y-6">
+        
+        <!-- Cards de Estatísticas Principais -->
+        <div class="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4">
+          <!-- Card Total Tipos -->
+          <div class="bg-white dark:bg-slate-800 p-5 rounded-2xl shadow-sm border border-slate-200/80 dark:border-slate-700 flex items-center justify-between">
+            <div>
+              <p class="text-xs font-medium text-slate-500 dark:text-slate-400 uppercase tracking-wider">Total de Tipos</p>
+              <h3 id="statTotalItems" class="text-2xl font-bold text-slate-900 dark:text-white mt-1">0</h3>
+            </div>
+            <div class="p-3 bg-blue-50 dark:bg-blue-950/50 text-blue-600 dark:text-blue-400 rounded-xl">
+              <i class="fa-solid fa-list-check text-xl"></i>
+            </div>
+          </div>
+
+          <!-- Card Total Peças -->
+          <div class="bg-white dark:bg-slate-800 p-5 rounded-2xl shadow-sm border border-slate-200/80 dark:border-slate-700 flex items-center justify-between">
+            <div>
+              <p class="text-xs font-medium text-slate-500 dark:text-slate-400 uppercase tracking-wider">Peças em Estoque</p>
+              <h3 id="statTotalUnits" class="text-2xl font-bold text-slate-900 dark:text-white mt-1">0</h3>
+            </div>
+            <div class="p-3 bg-emerald-50 dark:bg-emerald-950/50 text-emerald-600 dark:text-emerald-400 rounded-xl">
+              <i class="fa-solid fa-cubes text-xl"></i>
+            </div>
+          </div>
+
+          <!-- Card Itens Críticos (<= 5) -->
+          <div class="bg-white dark:bg-slate-800 p-5 rounded-2xl shadow-sm border border-slate-200/80 dark:border-slate-700 flex items-center justify-between">
+            <div>
+              <p class="text-xs font-medium text-slate-500 dark:text-slate-400 uppercase tracking-wider">Estoque Crítico (≤ 5)</p>
+              <h3 id="statLowStock" class="text-2xl font-bold text-amber-600 dark:text-amber-400 mt-1">0</h3>
+            </div>
+            <div class="p-3 bg-amber-50 dark:bg-amber-950/50 text-amber-600 dark:text-amber-400 rounded-xl">
+              <i class="fa-solid fa-triangle-exclamation text-xl"></i>
+            </div>
+          </div>
+
+          <!-- Card Ação Rápida Novo Item -->
+          <div class="bg-white dark:bg-slate-800 p-5 rounded-2xl shadow-sm border border-slate-200/80 dark:border-slate-700 flex items-center justify-between">
+            <div>
+              <p class="text-xs font-medium text-slate-500 dark:text-slate-400 uppercase tracking-wider">Novo Cadastro</p>
+              <button onclick="openAddProductModal()" class="mt-2 inline-flex items-center px-3 py-1.5 bg-brand-600 hover:bg-brand-700 text-white text-xs font-semibold rounded-lg shadow-sm transition-colors">
+                <i class="fa-solid fa-plus mr-1.5"></i> Add Item
+              </button>
+            </div>
+            <div class="p-3 bg-slate-100 dark:bg-slate-700 text-slate-600 dark:text-slate-300 rounded-xl">
+              <i class="fa-solid fa-box-open text-xl"></i>
+            </div>
+          </div>
+        </div>
+
+        <!-- Banner de Aviso Crítico (Exibido apenas quando há itens com estoque <= 5) -->
+        <div id="criticalBanner" class="hidden bg-amber-50 dark:bg-amber-950/30 border-l-4 border-amber-500 p-4 rounded-xl shadow-sm">
+          <div class="flex items-start">
+            <div class="flex-shrink-0 text-amber-500 mt-0.5">
+              <i class="fa-solid fa-circle-exclamation text-lg"></i>
+            </div>
+            <div class="ml-3">
+              <h3 class="text-sm font-semibold text-amber-800 dark:text-amber-300">Atenção: Equipamentos com Estoque Mínimo (≤ 5 unidades)</h3>
+              <div id="criticalList" class="mt-1 text-xs text-amber-700 dark:text-amber-400 flex flex-wrap gap-2">
+                <!-- Lista de itens dinâmicos -->
+              </div>
+            </div>
+          </div>
+        </div>
+
+        <!-- Tabela / Lista de Estoque -->
+        <div class="bg-white dark:bg-slate-800 rounded-2xl shadow-sm border border-slate-200/80 dark:border-slate-700 overflow-hidden">
+          <div class="p-4 sm:p-5 border-b border-slate-200 dark:border-slate-700 flex flex-col sm:flex-row justify-between sm:items-center gap-4">
+            <div>
+              <h2 class="text-lg font-bold text-slate-900 dark:text-white">Inventário de Equipamentos</h2>
+              <p class="text-xs text-slate-500 dark:text-slate-400">Consulte o saldo atual e faça buscas rápidas</p>
+            </div>
+            <!-- Campo de Busca -->
+            <div class="relative max-w-xs w-full">
+              <i class="fa-solid fa-magnifying-glass absolute left-3 top-1/2 -translate-y-1/2 text-slate-400 text-sm"></i>
+              <input type="text" id="searchInventory" placeholder="Buscar equipamento..." class="w-full pl-9 pr-4 py-2 bg-slate-50 dark:bg-slate-900 border border-slate-200 dark:border-slate-700 rounded-xl text-sm focus:outline-none focus:ring-2 focus:ring-brand-500 transition-all">
+            </div>
+          </div>
+
+          <div class="overflow-x-auto">
+            <table class="w-full text-left border-collapse">
+              <thead>
+                <tr class="bg-slate-50 dark:bg-slate-700/50 text-slate-500 dark:text-slate-400 text-xs uppercase tracking-wider border-b border-slate-200 dark:border-slate-700">
+                  <th class="py-3.5 px-4 font-semibold">Equipamento</th>
+                  <th class="py-3.5 px-4 font-semibold">Categoria</th>
+                  <th class="py-3.5 px-4 font-semibold text-center">Quantidade</th>
+                  <th class="py-3.5 px-4 font-semibold text-center">Status</th>
+                  <th class="py-3.5 px-4 font-semibold text-right">Ações</th>
+                </tr>
+              </thead>
+              <tbody id="inventoryTableBody" class="divide-y divide-slate-200 dark:divide-slate-700/60 text-sm">
+                <!-- Conteúdo preenchido dinamicamente por JS -->
+              </tbody>
+            </table>
+          </div>
+        </div>
+
+      </section>
+
+      <!-- ABA 2: MOVIMENTAÇÃO (ENTRADA / SAÍDA) -->
+      <section id="tab-movements" class="tab-content hidden max-w-3xl mx-auto">
+        <div class="bg-white dark:bg-slate-800 p-6 rounded-2xl shadow-sm border border-slate-200/80 dark:border-slate-700">
+          <div class="mb-6 border-b border-slate-200 dark:border-slate-700 pb-4">
+            <h2 class="text-xl font-bold text-slate-900 dark:text-white">Registrar Movimentação de Estoque</h2>
+            <p class="text-xs text-slate-500 dark:text-slate-400 mt-1">Selecione o equipamento, o tipo de operação e a quantidade a ser atualizada.</p>
+          </div>
+
+          <form id="movementForm" onsubmit="handleMovementSubmit(event)" class="space-y-5">
+            <!-- Seleção do Tipo de Operação (Entrada / Saída) -->
+            <div>
+              <label class="block text-xs font-bold text-slate-700 dark:text-slate-300 uppercase tracking-wider mb-2">Tipo de Movimentação</label>
+              <div class="grid grid-cols-2 gap-4">
+                <label class="relative flex items-center justify-center p-3 border border-slate-300 dark:border-slate-600 rounded-xl cursor-pointer hover:bg-emerald-50 dark:hover:bg-emerald-950/20 transition-all has-[:checked]:border-emerald-500 has-[:checked]:bg-emerald-50/80 dark:has-[:checked]:bg-emerald-950/40 has-[:checked]:text-emerald-600">
+                  <input type="radio" name="movementType" value="IN" class="sr-only" checked onchange="updateMovementTypeUI()">
+                  <div class="flex items-center space-x-2 font-semibold text-emerald-600 dark:text-emerald-400">
+                    <i class="fa-solid fa-arrow-down-left text-lg"></i>
+                    <span>Entrada (+)</span>
+                  </div>
+                </label>
+
+                <label class="relative flex items-center justify-center p-3 border border-slate-300 dark:border-slate-600 rounded-xl cursor-pointer hover:bg-rose-50 dark:hover:bg-rose-950/20 transition-all has-[:checked]:border-rose-500 has-[:checked]:bg-rose-50/80 dark:has-[:checked]:bg-rose-950/40 has-[:checked]:text-rose-600">
+                  <input type="radio" name="movementType" value="OUT" class="sr-only" onchange="updateMovementTypeUI()">
+                  <div class="flex items-center space-x-2 font-semibold text-rose-600 dark:text-rose-400">
+                    <i class="fa-solid fa-arrow-up-right text-lg"></i>
+                    <span>Saída (-)</span>
+                  </div>
+                </label>
+              </div>
+            </div>
+
+            <!-- Seleção do Equipamento -->
+            <div>
+              <label for="moveProductSelect" class="block text-xs font-bold text-slate-700 dark:text-slate-300 uppercase tracking-wider mb-2">Selecione o Equipamento</label>
+              <select id="moveProductSelect" required class="w-full p-3 bg-slate-50 dark:bg-slate-900 border border-slate-300 dark:border-slate-700 rounded-xl text-sm focus:ring-2 focus:ring-brand-500 focus:outline-none">
+                <!-- Opções dinâmicas JS -->
+              </select>
+            </div>
+
+            <!-- Quantidade -->
+            <div>
+              <label for="moveQuantity" class="block text-xs font-bold text-slate-700 dark:text-slate-300 uppercase tracking-wider mb-2">Quantidade</label>
+              <input type="number" id="moveQuantity" min="1" value="1" required class="w-full p-3 bg-slate-50 dark:bg-slate-900 border border-slate-300 dark:border-slate-700 rounded-xl text-sm focus:ring-2 focus:ring-brand-500 focus:outline-none">
+            </div>
+
+            <!-- Motivo / Observação -->
+            <div>
+              <label for="moveReason" class="block text-xs font-bold text-slate-700 dark:text-slate-300 uppercase tracking-wider mb-2">Observação / Motivo (Opcional)</label>
+              <input type="text" id="moveReason" placeholder="Ex: Entrega para novo funcionário, Compra de reposição, etc." class="w-full p-3 bg-slate-50 dark:bg-slate-900 border border-slate-300 dark:border-slate-700 rounded-xl text-sm focus:ring-2 focus:ring-brand-500 focus:outline-none">
+            </div>
+
+            <!-- Botão de Envio -->
+            <button type="submit" id="btnSubmitMovement" class="w-full py-3.5 bg-emerald-600 hover:bg-emerald-700 text-white font-bold rounded-xl shadow-md transition-all flex items-center justify-center space-x-2">
+              <i class="fa-solid fa-check"></i>
+              <span>Confirmar Movimentação</span>
+            </button>
+          </form>
+        </div>
+      </section>
+
+      <!-- ABA 3: HISTÓRICO DE LOGS -->
+      <section id="tab-logs" class="tab-content hidden space-y-4">
+        <div class="bg-white dark:bg-slate-800 rounded-2xl shadow-sm border border-slate-200/80 dark:border-slate-700 overflow-hidden">
+          <div class="p-4 sm:p-5 border-b border-slate-200 dark:border-slate-700 flex flex-col sm:flex-row justify-between sm:items-center gap-4">
+            <div>
+              <h2 class="text-lg font-bold text-slate-900 dark:text-white">Histórico de Operações</h2>
+              <p class="text-xs text-slate-500 dark:text-slate-400">Trilha de auditoria e registro de todas as ações executadas</p>
+            </div>
+            <!-- Botão Limpar Logs (Exige Admin) -->
+            <button onclick="confirmClearLogs()" class="inline-flex items-center px-4 py-2 bg-rose-50 dark:bg-rose-950/30 text-rose-600 dark:text-rose-400 border border-rose-200 dark:border-rose-900/50 hover:bg-rose-600 hover:text-white text-xs font-bold rounded-xl transition-all">
+              <i class="fa-solid fa-trash-can mr-2"></i> Limpar Histórico (Admin)
+            </button>
+          </div>
+
+          <!-- Tabela de Logs -->
+          <div class="overflow-x-auto">
+            <table class="w-full text-left border-collapse">
+              <thead>
+                <tr class="bg-slate-50 dark:bg-slate-700/50 text-slate-500 dark:text-slate-400 text-xs uppercase tracking-wider border-b border-slate-200 dark:border-slate-700">
+                  <th class="py-3.5 px-4 font-semibold">Data / Hora</th>
+                  <th class="py-3.5 px-4 font-semibold">Tipo de Ação</th>
+                  <th class="py-3.5 px-4 font-semibold">Equipamento</th>
+                  <th class="py-3.5 px-4 font-semibold text-center">Qtd. Afetada</th>
+                  <th class="py-3.5 px-4 font-semibold">Detalhes / Motivo</th>
+                </tr>
+              </thead>
+              <tbody id="logsTableBody" class="divide-y divide-slate-200 dark:divide-slate-700/60 text-sm">
+                <!-- Conteúdo preenchido dinamicamente por JS -->
+              </tbody>
+            </table>
+          </div>
+        </div>
+      </section>
+
+      <!-- ABA 4: CONFIGURAÇÕES (ALTERAR SENHA) -->
+      <section id="tab-settings" class="tab-content hidden max-w-xl mx-auto">
+        <div class="bg-white dark:bg-slate-800 p-6 rounded-2xl shadow-sm border border-slate-200/80 dark:border-slate-700 space-y-6">
+          <div class="border-b border-slate-200 dark:border-slate-700 pb-4">
+            <h2 class="text-xl font-bold text-slate-900 dark:text-white">Segurança & Administração</h2>
+            <p class="text-xs text-slate-500 dark:text-slate-400 mt-1">Gerencie a senha de acesso para ações privilegiadas (Exclusões e Limpeza de Logs).</p>
+          </div>
+
+          <form id="changePasswordForm" onsubmit="handleChangePassword(event)" class="space-y-4">
+            <div>
+              <label for="currentPasswordInput" class="block text-xs font-bold text-slate-700 dark:text-slate-300 uppercase tracking-wider mb-1">Senha Atual do Admin</label>
+              <input type="password" id="currentPasswordInput" required placeholder="Digite a senha atual" class="w-full p-3 bg-slate-50 dark:bg-slate-900 border border-slate-300 dark:border-slate-700 rounded-xl text-sm focus:ring-2 focus:ring-brand-500 focus:outline-none">
+            </div>
+
+            <div>
+              <label for="newPasswordInput" class="block text-xs font-bold text-slate-700 dark:text-slate-300 uppercase tracking-wider mb-1">Nova Senha</label>
+              <input type="password" id="newPasswordInput" required minlength="4" placeholder="Digite a nova senha" class="w-full p-3 bg-slate-50 dark:bg-slate-900 border border-slate-300 dark:border-slate-700 rounded-xl text-sm focus:ring-2 focus:ring-brand-500 focus:outline-none">
+            </div>
+
+            <div>
+              <label for="confirmNewPasswordInput" class="block text-xs font-bold text-slate-700 dark:text-slate-300 uppercase tracking-wider mb-1">Confirme a Nova Senha</label>
+              <input type="password" id="confirmNewPasswordInput" required minlength="4" placeholder="Repita a nova senha" class="w-full p-3 bg-slate-50 dark:bg-slate-900 border border-slate-300 dark:border-slate-700 rounded-xl text-sm focus:ring-2 focus:ring-brand-500 focus:outline-none">
+            </div>
+
+            <button type="submit" class="w-full py-3 bg-brand-600 hover:bg-brand-700 text-white font-bold rounded-xl shadow-md transition-all flex items-center justify-center space-x-2">
+              <i class="fa-solid fa-key"></i>
+              <span>Atualizar Senha do Administrador</span>
+            </button>
+          </form>
+        </div>
+      </section>
+
+    </main>
+
+    <!-- MODAL DE ADICIONAR PRODUTO -->
+    <div id="addProductModal" class="fixed inset-0 bg-slate-900/60 backdrop-blur-sm z-50 flex items-center justify-center p-4 hidden">
+      <div class="bg-white dark:bg-slate-800 rounded-2xl shadow-xl max-w-md w-full p-6 border border-slate-200 dark:border-slate-700">
+        <div class="flex justify-between items-center border-b border-slate-200 dark:border-slate-700 pb-3 mb-4">
+          <h3 class="font-bold text-lg text-slate-900 dark:text-white flex items-center space-x-2">
+            <i class="fa-solid fa-box-open text-brand-600"></i>
+            <span>Cadastrar Novo Equipamento</span>
+          </h3>
+          <button onclick="closeAddProductModal()" class="text-slate-400 hover:text-slate-600 dark:hover:text-slate-200">
+            <i class="fa-solid fa-xmark text-lg"></i>
+          </button>
+        </div>
+        <form id="addProductForm" onsubmit="handleAddProductSubmit(event)" class="space-y-4">
+          <div>
+            <label class="block text-xs font-bold text-slate-700 dark:text-slate-300 uppercase mb-1">Nome do Equipamento</label>
+            <input type="text" id="newProductName" required placeholder="Ex: Nobreak 1200VA" class="w-full p-3 bg-slate-50 dark:bg-slate-900 border border-slate-300 dark:border-slate-700 rounded-xl text-sm focus:ring-2 focus:ring-brand-500 focus:outline-none">
+          </div>
+          <div>
+            <label class="block text-xs font-bold text-slate-700 dark:text-slate-300 uppercase mb-1">Quantidade Inicial</label>
+            <input type="number" id="newProductQty" min="0" value="0" required class="w-full p-3 bg-slate-50 dark:bg-slate-900 border border-slate-300 dark:border-slate-700 rounded-xl text-sm focus:ring-2 focus:ring-brand-500 focus:outline-none">
+          </div>
+          <div class="flex space-x-3 pt-2">
+            <button type="button" onclick="closeAddProductModal()" class="w-1/2 py-2.5 bg-slate-100 hover:bg-slate-200 dark:bg-slate-700 dark:hover:bg-slate-600 text-slate-700 dark:text-slate-200 text-sm font-semibold rounded-xl">Cancelar</button>
+            <button type="submit" class="w-1/2 py-2.5 bg-brand-600 hover:bg-brand-700 text-white text-sm font-semibold rounded-xl shadow">Cadastrar</button>
+          </div>
+        </form>
+      </div>
+    </div>
+
+    <!-- MODAL COMPLETO DE EDIÇÃO DE PRODUTO E SALDO -->
+    <div id="editStockModal" class="fixed inset-0 bg-slate-900/60 backdrop-blur-sm z-50 flex items-center justify-center p-4 hidden">
+      <div class="bg-white dark:bg-slate-800 rounded-2xl shadow-xl max-w-md w-full p-6 border border-slate-200 dark:border-slate-700">
+        <div class="flex justify-between items-center border-b border-slate-200 dark:border-slate-700 pb-3 mb-4">
+          <h3 class="font-bold text-lg text-slate-900 dark:text-white flex items-center space-x-2">
+            <i class="fa-solid fa-pen-to-square text-brand-600"></i>
+            <span>Editar Equipamento</span>
+          </h3>
+          <button onclick="closeEditStockModal()" class="text-slate-400 hover:text-slate-600 dark:hover:text-slate-200">
+            <i class="fa-solid fa-xmark text-lg"></i>
+          </button>
+        </div>
+        <form id="editStockForm" onsubmit="handleEditStockSubmit(event)" class="space-y-4">
+          <input type="hidden" id="editStockProductId">
+          <div>
+            <label class="block text-xs font-bold text-slate-700 dark:text-slate-300 uppercase mb-1">Nome do Equipamento</label>
+            <input type="text" id="editStockProductNameInput" required class="w-full p-3 bg-slate-50 dark:bg-slate-900 border border-slate-300 dark:border-slate-700 rounded-xl text-sm focus:ring-2 focus:ring-brand-500 focus:outline-none">
+          </div>
+          <div>
+            <label class="block text-xs font-bold text-slate-700 dark:text-slate-300 uppercase mb-1">Quantidade em Saldo</label>
+            <input type="number" id="editStockQty" min="0" required class="w-full p-3 bg-slate-50 dark:bg-slate-900 border border-slate-300 dark:border-slate-700 rounded-xl text-sm focus:ring-2 focus:ring-brand-500 focus:outline-none">
+          </div>
+          <div>
+            <label class="block text-xs font-bold text-slate-700 dark:text-slate-300 uppercase mb-1">Motivo / Observação da Edição</label>
+            <input type="text" id="editStockReason" placeholder="Ex: Correção de inventário" class="w-full p-3 bg-slate-50 dark:bg-slate-900 border border-slate-300 dark:border-slate-700 rounded-xl text-sm focus:ring-2 focus:ring-brand-500 focus:outline-none">
+          </div>
+          <div class="flex space-x-3 pt-2">
+            <button type="button" onclick="closeEditStockModal()" class="w-1/2 py-2.5 bg-slate-100 hover:bg-slate-200 dark:bg-slate-700 dark:hover:bg-slate-600 text-slate-700 dark:text-slate-200 text-sm font-semibold rounded-xl">Cancelar</button>
+            <button type="submit" class="w-1/2 py-2.5 bg-emerald-600 hover:bg-emerald-700 text-white text-sm font-semibold rounded-xl shadow">Salvar Alterações</button>
+          </div>
+        </form>
+      </div>
+    </div>
+
+    <!-- MODAL AUTENTICAÇÃO ADMIN -->
+    <div id="adminAuthModal" class="fixed inset-0 bg-slate-900/60 backdrop-blur-sm z-50 flex items-center justify-center p-4 hidden">
+      <div class="bg-white dark:bg-slate-800 rounded-2xl shadow-xl max-w-sm w-full p-6 border border-slate-200 dark:border-slate-700">
+        <div class="text-center mb-4">
+          <div class="w-12 h-12 bg-rose-100 dark:bg-rose-950/60 text-rose-600 dark:text-rose-400 rounded-full flex items-center justify-center mx-auto mb-3">
+            <i class="fa-solid fa-lock text-xl"></i>
+          </div>
+          <h3 class="font-bold text-lg text-slate-900 dark:text-white">Autenticação Requerida</h3>
+          <p id="adminAuthDescription" class="text-xs text-slate-500 dark:text-slate-400 mt-1">Informe a senha de Administrador para prosseguir.</p>
+        </div>
+        <form id="adminAuthForm" onsubmit="handleAdminAuthSubmit(event)" class="space-y-4">
+          <div>
+            <input type="password" id="adminPasswordInput" required placeholder="Digite a senha de admin" class="w-full p-3 bg-slate-50 dark:bg-slate-900 border border-slate-300 dark:border-slate-700 rounded-xl text-sm focus:ring-2 focus:ring-brand-500 focus:outline-none text-center font-bold tracking-widest">
+          </div>
+          <div class="flex space-x-3">
+            <button type="button" onclick="closeAdminAuthModal()" class="w-1/2 py-2.5 bg-slate-100 hover:bg-slate-200 dark:bg-slate-700 dark:hover:bg-slate-600 text-slate-700 dark:text-slate-200 text-sm font-semibold rounded-xl">Cancelar</button>
+            <button type="submit" class="w-1/2 py-2.5 bg-rose-600 hover:bg-rose-700 text-white text-sm font-semibold rounded-xl shadow">Confirmar</button>
+          </div>
+        </form>
+      </div>
+    </div>
+
+    <!-- Rodapé -->
+    <footer class="bg-white dark:bg-slate-800 border-t border-slate-200 dark:border-slate-700 py-4 text-center text-xs text-slate-500 dark:text-slate-400">
+      <p>Sistema de Controle de Estoque de Informática &copy; <span id="year"></span> - Sincronizado online em tempo real.</p>
+    </footer>
+
+  </div>
+
+  <!-- SCRIPT DO FIREBASE (FIRESTORE + AUTH) & LÓGICA DO SISTEMA -->
+  <script type="module">
+    import { initializeApp } from "https://www.gstatic.com/firebasejs/11.6.1/firebase-app.js";
+    import { getAuth, signInAnonymously, signInWithCustomToken } from "https://www.gstatic.com/firebasejs/11.6.1/firebase-auth.js";
+    import { getFirestore, doc, setDoc, onSnapshot } from "https://www.gstatic.com/firebasejs/11.6.1/firebase-firestore.js";
+
+    // --- CONFIGURAÇÃO E INICIALIZAÇÃO DO FIREBASE ---
+    const appId = typeof __app_id !== 'undefined' ? __app_id : 'estoque-ti-app';
+    const firebaseConfig = typeof __firebase_config !== 'undefined' 
+      ? JSON.parse(__firebase_config) 
+      : { apiKey: "demo", authDomain: "demo.firebaseapp.com", projectId: "demo-app" };
+
+    const app = initializeApp(firebaseConfig);
+    const auth = getAuth(app);
+    const db = getFirestore(app);
+
+    const DEFAULT_PASS = '257010';
+    const INITIAL_PRODUCTS = [
+      { id: '1', name: 'Monitor', quantity: 10 },
+      { id: '2', name: 'CPU', quantity: 8 },
+      { id: '3', name: 'Base CPU', quantity: 6 },
+      { id: '4', name: 'Cabo de força', quantity: 15 },
+      { id: '5', name: 'Cabo HDMI', quantity: 4 },
+      { id: '6', name: 'Cabo DP', quantity: 3 },
+      { id: '7', name: 'Mouse', quantity: 12 },
+      { id: '8', name: 'Teclado', quantity: 9 },
+      { id: '9', name: 'Mouse pad', quantity: 5 }
+    ];
+
+    // Estado local da aplicação alimentado pelo Firestore / LocalStorage Fallback
+    window.appState = {
+      items: [],
+      logs: [],
+      adminPassword: DEFAULT_PASS,
+      userId: null,
+      isDbReady: false,
+      pendingAdminCallback: null
+    };
+
+    // FUNÇÕES DE REPOSITÓRIO LOCALSTORAGE (FALLBACK)
+    function saveLocal(key, value) {
+      try {
+        localStorage.setItem('stock_ti_' + key, JSON.stringify(value));
+      } catch (e) {
+        console.warn("Storage local cheio ou indisponível");
+      }
+    }
+
+    function getLocal(key, fallback) {
+      try {
+        const item = localStorage.getItem('stock_ti_' + key);
+        return item ? JSON.parse(item) : fallback;
+      } catch (e) {
+        return fallback;
+      }
+    }
+
+    // --- AUTENTICAÇÃO E REPETIÇÃO EM NUVEM ---
+    async function initAuth() {
+      // Carrega local primeiramente para resposta instantânea na UI
+      window.appState.items = getLocal('items', INITIAL_PRODUCTS);
+      window.appState.logs = getLocal('logs', []);
+      window.appState.adminPassword = getLocal('password', DEFAULT_PASS);
+      renderAll();
+
+      try {
+        if (typeof __initial_auth_token !== 'undefined' && __initial_auth_token) {
+          await signInWithCustomToken(auth, __initial_auth_token);
+        } else {
+          await signInAnonymously(auth);
+        }
+        window.appState.userId = auth.currentUser?.uid || 'anonymous';
+        updateCloudStatus(true, 'Conectado à nuvem (Sincronizado)');
+        setupRealtimeListeners();
+      } catch (err) {
+        console.warn("Erro ao autenticar no Firebase, operando com armazenamento local:", err);
+        updateCloudStatus(false, 'Modo offline (Salvo no navegador)');
+      }
+    }
+
+    function updateCloudStatus(isOnline, text) {
+      const dot = document.getElementById('cloudStatusDot');
+      const textEl = document.getElementById('cloudStatusText');
+      if (dot && textEl) {
+        textEl.textContent = text;
+        if (isOnline) {
+          dot.className = 'w-2 h-2 rounded-full bg-emerald-500';
+        } else {
+          dot.className = 'w-2 h-2 rounded-full bg-amber-500 animate-pulse';
+        }
+      }
+    }
+
+    function getDocRef(docName) {
+      return doc(db, 'artifacts', appId, 'public', 'data', 'stock_state', docName);
+    }
+
+    function setupRealtimeListeners() {
+      // 1. Escutar Itens do Estoque
+      const itemsDocRef = getDocRef('inventory');
+      onSnapshot(itemsDocRef, (snapshot) => {
+        if (snapshot.exists() && snapshot.data().items) {
+          window.appState.items = snapshot.data().items;
+          saveLocal('items', window.appState.items);
+        } else {
+          saveItemsToCloud();
+        }
+        window.appState.isDbReady = true;
+        renderAll();
+      }, (err) => {
+        console.warn("Firestore listener items erro, usando local fallback", err);
+      });
+
+      // 2. Escutar Logs
+      const logsDocRef = getDocRef('logs');
+      onSnapshot(logsDocRef, (snapshot) => {
+        if (snapshot.exists() && snapshot.data().logs) {
+          window.appState.logs = snapshot.data().logs;
+          saveLocal('logs', window.appState.logs);
+        } else {
+          saveLogsToCloud();
+        }
+        renderLogsTable();
+      }, (err) => {
+        console.warn("Firestore listener logs erro", err);
+      });
+
+      // 3. Escutar Senha Admin
+      const passDocRef = getDocRef('config');
+      onSnapshot(passDocRef, (snapshot) => {
+        if (snapshot.exists() && snapshot.data().adminPassword) {
+          window.appState.adminPassword = snapshot.data().adminPassword;
+          saveLocal('password', window.appState.adminPassword);
+        } else {
+          savePasswordToCloud(DEFAULT_PASS);
+        }
+      }, (err) => {
+        console.warn("Firestore listener pass erro", err);
+      });
+    }
+
+    // --- SALVAMENTO EM TEMPO REAL NO FIRESTORE + LOCALSTORAGE ---
+    async function saveItemsToCloud() {
+      saveLocal('items', window.appState.items);
+      if (!auth.currentUser) return;
+      try {
+        await setDoc(getDocRef('inventory'), { items: window.appState.items });
+      } catch (err) {
+        console.error("Erro ao salvar itens no banco:", err);
+      }
+    }
+
+    async function saveLogsToCloud() {
+      saveLocal('logs', window.appState.logs);
+      if (!auth.currentUser) return;
+      try {
+        await setDoc(getDocRef('logs'), { logs: window.appState.logs });
+      } catch (err) {
+        console.error("Erro ao salvar logs no banco:", err);
+      }
+    }
+
+    async function savePasswordToCloud(newPass) {
+      window.appState.adminPassword = newPass;
+      saveLocal('password', newPass);
+      if (!auth.currentUser) return;
+      try {
+        await setDoc(getDocRef('config'), { adminPassword: newPass });
+      } catch (err) {
+        console.error("Erro ao salvar nova senha no banco:", err);
+      }
+    }
+
+    // --- REGISTRO DE LOGS ---
+    function addLog(actionType, productName, quantityChange, details = '') {
+      const now = new Date();
+      const timestamp = now.toLocaleDateString('pt-BR') + ' ' + now.toLocaleTimeString('pt-BR');
+      
+      const logEntry = {
+        id: Date.now().toString(36) + Math.random().toString(36).substr(2, 5),
+        timestamp,
+        actionType,
+        productName,
+        quantityChange,
+        details
+      };
+
+      window.appState.logs.unshift(logEntry);
+      saveLogsToCloud();
+      renderLogsTable();
+    }
+
+    // --- CARREGAMENTO E INTERFACE ---
+    window.onload = function() {
+      document.getElementById('year').textContent = new Date().getFullYear();
+      loadTheme();
+      setupTabNavigation();
+      initAuth();
+    };
+
+    function setupTabNavigation() {
+      const tabButtons = document.querySelectorAll('.tab-btn');
+      tabButtons.forEach(btn => {
+        btn.addEventListener('click', () => {
+          const tabId = btn.getAttribute('data-tab');
+          
+          tabButtons.forEach(b => {
+            b.classList.remove('bg-brand-600', 'text-white', 'shadow-sm');
+            b.classList.add('text-slate-600', 'dark:text-slate-400', 'hover:bg-slate-200/60', 'dark:hover:bg-slate-700/50');
+          });
+          btn.classList.remove('text-slate-600', 'dark:text-slate-400', 'hover:bg-slate-200/60', 'dark:hover:bg-slate-700/50');
+          btn.classList.add('bg-brand-600', 'text-white', 'shadow-sm');
+
+          document.querySelectorAll('.tab-content').forEach(sec => sec.classList.add('hidden'));
+          document.getElementById(`tab-${tabId}`).classList.remove('hidden');
+        });
+      });
+
+      document.getElementById('searchInventory').addEventListener('input', renderInventoryTable);
+    }
+
+    // Tema Claro / Escuro
+    const themeToggleBtn = document.getElementById('themeToggle');
+    const themeIcon = document.getElementById('themeIcon');
+
+    themeToggleBtn.addEventListener('click', () => {
+      document.documentElement.classList.toggle('dark');
+      const isDark = document.documentElement.classList.contains('dark');
+      localStorage.setItem('stock_ti_theme', isDark ? 'dark' : 'light');
+      updateThemeIcon(isDark);
+    });
+
+    function loadTheme() {
+      const savedTheme = localStorage.getItem('stock_ti_theme');
+      const prefersDark = window.matchMedia('(prefers-color-scheme: dark)').matches;
+      
+      if (savedTheme === 'dark' || (!savedTheme && prefersDark)) {
+        document.documentElement.classList.add('dark');
+        updateThemeIcon(true);
+      } else {
+        document.documentElement.classList.remove('dark');
+        updateThemeIcon(false);
+      }
+    }
+
+    function updateThemeIcon(isDark) {
+      themeIcon.className = isDark ? 'fa-solid fa-sun text-lg text-amber-400' : 'fa-solid fa-moon text-lg';
+    }
+
+    // --- RENDERIZAÇÃO DE DADOS ---
+    function renderAll() {
+      renderInventoryTable();
+      renderStatsAndAlerts();
+      populateMovementSelect();
+      renderLogsTable();
+    }
+
+    function renderStatsAndAlerts() {
+      const items = window.appState.items;
+      const totalTypes = items.length;
+      const totalUnits = items.reduce((acc, item) => acc + (Number(item.quantity) || 0), 0);
+      const lowStockItems = items.filter(item => Number(item.quantity) <= 5);
+
+      document.getElementById('statTotalItems').textContent = totalTypes;
+      document.getElementById('statTotalUnits').textContent = totalUnits;
+      document.getElementById('statLowStock').textContent = lowStockItems.length;
+
+      const badge = document.getElementById('lowStockBadge');
+      const badgeText = document.getElementById('lowStockCountText');
+      if (lowStockItems.length > 0) {
+        badge.classList.remove('hidden');
+        badge.classList.add('flex');
+        badgeText.textContent = `${lowStockItems.length} item(ns) em alerta (≤ 5)`;
+      } else {
+        badge.classList.add('hidden');
+        badge.classList.remove('flex');
+      }
+
+      const banner = document.getElementById('criticalBanner');
+      const criticalList = document.getElementById('criticalList');
+      if (lowStockItems.length > 0) {
+        banner.classList.remove('hidden');
+        criticalList.innerHTML = lowStockItems.map(item => `
+          <span class="inline-flex items-center px-2 py-1 bg-amber-100 dark:bg-amber-900/50 text-amber-900 dark:text-amber-200 rounded font-semibold text-xs border border-amber-300 dark:border-amber-700">
+            ${escapeHTML(item.name)}: <strong>${item.quantity} un</strong>
+          </span>
+        `).join('');
+      } else {
+        banner.classList.add('hidden');
+      }
+    }
+
+    function renderInventoryTable() {
+      const tbody = document.getElementById('inventoryTableBody');
+      const searchTerm = document.getElementById('searchInventory').value.toLowerCase().trim();
+      const items = window.appState.items;
+      
+      const filtered = items.filter(i => i.name.toLowerCase().includes(searchTerm));
+
+      if (filtered.length === 0) {
+        tbody.innerHTML = `
+          <tr>
+            <td colspan="5" class="py-8 text-center text-slate-400 dark:text-slate-500">
+              <i class="fa-solid fa-inbox text-3xl mb-2 block"></i>
+              Nenhum equipamento encontrado.
+            </td>
+          </tr>
+        `;
+        return;
+      }
+
+      tbody.innerHTML = filtered.map(item => {
+        const isCritical = item.quantity <= 5;
+        const statusBadge = isCritical
+          ? `<span class="inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-semibold bg-amber-100 text-amber-800 dark:bg-amber-950/60 dark:text-amber-400 border border-amber-200 dark:border-amber-800">
+              <i class="fa-solid fa-triangle-exclamation mr-1 text-xs"></i> Baixo (≤5)
+             </span>`
+          : `<span class="inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-semibold bg-emerald-100 text-emerald-800 dark:bg-emerald-950/60 dark:text-emerald-400 border border-emerald-200 dark:border-emerald-800">
+              <i class="fa-solid fa-check mr-1 text-xs"></i> Normal
+             </span>`;
+
+        return `
+          <tr class="hover:bg-slate-50 dark:hover:bg-slate-700/30 transition-colors">
+            <td class="py-3.5 px-4 font-semibold text-slate-900 dark:text-white">${escapeHTML(item.name)}</td>
+            <td class="py-3.5 px-4 text-xs text-slate-500 dark:text-slate-400">Informática</td>
+            <td class="py-3.5 px-4 text-center font-bold text-base ${isCritical ? 'text-amber-600 dark:text-amber-400' : 'text-slate-700 dark:text-slate-200'}">
+              ${item.quantity}
+            </td>
+            <td class="py-3.5 px-4 text-center">${statusBadge}</td>
+            <td class="py-3.5 px-4 text-right space-x-2">
+              <button onclick="window.openEditStockModal('${item.id}')" title="Editar equipamento" class="p-1.5 text-slate-500 hover:text-brand-600 dark:text-slate-400 dark:hover:text-brand-400 transition-colors">
+                <i class="fa-solid fa-pen-to-square"></i>
+              </button>
+              <button onclick="window.confirmDeleteProduct('${item.id}')" title="Excluir equipamento (Requer Admin)" class="p-1.5 text-slate-500 hover:text-rose-600 dark:text-slate-400 dark:hover:text-rose-400 transition-colors">
+                <i class="fa-solid fa-trash-can"></i>
+              </button>
+            </td>
+          </tr>
+        `;
+      }).join('');
+    }
+
+    function populateMovementSelect() {
+      const select = document.getElementById('moveProductSelect');
+      const items = window.appState.items;
+
+      if (items.length === 0) {
+        select.innerHTML = `<option value="">Nenhum produto cadastrado</option>`;
+        return;
+      }
+      select.innerHTML = items.map(i => `<option value="${i.id}">${escapeHTML(i.name)} (Atual: ${i.quantity})</option>`).join('');
+    }
+
+    function renderLogsTable() {
+      const tbody = document.getElementById('logsTableBody');
+      const logs = window.appState.logs;
+
+      if (logs.length === 0) {
+        tbody.innerHTML = `
+          <tr>
+            <td colspan="5" class="py-8 text-center text-slate-400 dark:text-slate-500">
+              <i class="fa-solid fa-clipboard-list text-3xl mb-2 block"></i>
+              Nenhum registro de log armazenado.
+            </td>
+          </tr>
+        `;
+        return;
+      }
+
+      tbody.innerHTML = logs.map(log => {
+        let actionBadge = '';
+        let qtyDisplay = log.quantityChange !== 0 ? (log.quantityChange > 0 ? `+${log.quantityChange}` : log.quantityChange) : '-';
+
+        switch (log.actionType) {
+          case 'ENTRADA':
+            actionBadge = `<span class="inline-flex items-center px-2 py-0.5 rounded text-xs font-bold bg-emerald-100 text-emerald-800 dark:bg-emerald-950/60 dark:text-emerald-400"><i class="fa-solid fa-arrow-down-left mr-1"></i> Entrada</span>`;
+            break;
+          case 'SAIDA':
+            actionBadge = `<span class="inline-flex items-center px-2 py-0.5 rounded text-xs font-bold bg-rose-100 text-rose-800 dark:bg-rose-950/60 dark:text-rose-400"><i class="fa-solid fa-arrow-up-right mr-1"></i> Saída</span>`;
+            break;
+          case 'CADASTRO':
+            actionBadge = `<span class="inline-flex items-center px-2 py-0.5 rounded text-xs font-bold bg-blue-100 text-blue-800 dark:bg-blue-950/60 dark:text-blue-400"><i class="fa-solid fa-plus mr-1"></i> Novo Cadastro</span>`;
+            break;
+          case 'EXCLUSAO':
+            actionBadge = `<span class="inline-flex items-center px-2 py-0.5 rounded text-xs font-bold bg-slate-200 text-slate-800 dark:bg-slate-700 dark:text-slate-300"><i class="fa-solid fa-trash mr-1"></i> Exclusão</span>`;
+            break;
+          case 'AJUSTE':
+            actionBadge = `<span class="inline-flex items-center px-2 py-0.5 rounded text-xs font-bold bg-purple-100 text-purple-800 dark:bg-purple-950/60 dark:text-purple-400"><i class="fa-solid fa-sliders mr-1"></i> Edição</span>`;
+            break;
+          case 'LIMPEZA_LOG':
+            actionBadge = `<span class="inline-flex items-center px-2 py-0.5 rounded text-xs font-bold bg-amber-100 text-amber-800 dark:bg-amber-950/60 dark:text-amber-400"><i class="fa-solid fa-broom mr-1"></i> Limpeza Logs</span>`;
+            break;
+        }
+
+        return `
+          <tr class="hover:bg-slate-50 dark:hover:bg-slate-700/30 transition-colors">
+            <td class="py-3 px-4 text-xs font-mono text-slate-500 dark:text-slate-400">${log.timestamp}</td>
+            <td class="py-3 px-4">${actionBadge}</td>
+            <td class="py-3 px-4 font-semibold text-slate-800 dark:text-slate-200">${escapeHTML(log.productName || '-')}</td>
+            <td class="py-3 px-4 text-center font-bold ${log.quantityChange > 0 ? 'text-emerald-600' : (log.quantityChange < 0 ? 'text-rose-600' : 'text-slate-500')}">${qtyDisplay}</td>
+            <td class="py-3 px-4 text-xs text-slate-600 dark:text-slate-400">${escapeHTML(log.details || '-')}</td>
+          </tr>
+        `;
+      }).join('');
+    }
+
+    // --- OPERAÇÕES DE ADICIONAR E EDITAR ---
+
+    window.openAddProductModal = function() {
+      document.getElementById('addProductForm').reset();
+      document.getElementById('addProductModal').classList.remove('hidden');
+    }
+    window.closeAddProductModal = function() {
+      document.getElementById('addProductModal').classList.add('hidden');
+    }
+
+    window.handleAddProductSubmit = function(e) {
+      e.preventDefault();
+      const nameInput = document.getElementById('newProductName').value.trim();
+      const qtyInput = parseInt(document.getElementById('newProductQty').value) || 0;
+
+      if (!nameInput) return;
+
+      if (window.appState.items.some(i => i.name.toLowerCase() === nameInput.toLowerCase())) {
+        showToast('Um equipamento com este nome já está cadastrado!', 'error');
+        return;
+      }
+
+      const newItem = {
+        id: Date.now().toString(),
+        name: nameInput,
+        quantity: qtyInput
+      };
+
+      window.appState.items.push(newItem);
+      saveItemsToCloud();
+      addLog('CADASTRO', newItem.name, newItem.quantity, 'Novo equipamento adicionado ao sistema');
+
+      renderAll();
+      window.closeAddProductModal();
+      showToast(`Equipamento "${newItem.name}" cadastrado com sucesso!`, 'success');
+    }
+
+    window.updateMovementTypeUI = function() {
+      const type = document.querySelector('input[name="movementType"]:checked').value;
+      const btn = document.getElementById('btnSubmitMovement');
+      if (type === 'IN') {
+        btn.className = "w-full py-3.5 bg-emerald-600 hover:bg-emerald-700 text-white font-bold rounded-xl shadow-md transition-all flex items-center justify-center space-x-2";
+        btn.innerHTML = `<i class="fa-solid fa-check"></i><span>Confirmar Entrada (+)</span>`;
+      } else {
+        btn.className = "w-full py-3.5 bg-rose-600 hover:bg-rose-700 text-white font-bold rounded-xl shadow-md transition-all flex items-center justify-center space-x-2";
+        btn.innerHTML = `<i class="fa-solid fa-check"></i><span>Confirmar Saída (-)</span>`;
+      }
+    }
+
+    window.handleMovementSubmit = function(e) {
+      e.preventDefault();
+      const type = document.querySelector('input[name="movementType"]:checked').value;
+      const productId = document.getElementById('moveProductSelect').value;
+      const qty = parseInt(document.getElementById('moveQuantity').value) || 0;
+      const reason = document.getElementById('moveReason').value.trim();
+
+      if (!productId || qty <= 0) {
+        showToast('Selecione um equipamento e uma quantidade válida.', 'error');
+        return;
+      }
+
+      const item = window.appState.items.find(i => String(i.id) === String(productId));
+      if (!item) return;
+
+      if (type === 'OUT' && item.quantity < qty) {
+        showToast(`Saldo insuficiente! Estoque atual de "${item.name}" é de ${item.quantity} un.`, 'error');
+        return;
+      }
+
+      if (type === 'IN') {
+        item.quantity += qty;
+        addLog('ENTRADA', item.name, qty, reason || 'Entrada em estoque');
+        showToast(`Entrada de ${qty} un. em "${item.name}" registrada!`, 'success');
+      } else {
+        item.quantity -= qty;
+        addLog('SAIDA', item.name, -qty, reason || 'Saída do estoque');
+        showToast(`Saída de ${qty} un. de "${item.name}" registrada!`, 'success');
+      }
+
+      saveItemsToCloud();
+      renderAll();
+      document.getElementById('movementForm').reset();
+      window.updateMovementTypeUI();
+    }
+
+    // ABRIR E SUBMETER EDIÇÃO DE NOME E QUANTIDADE DO PRODUTO
+    window.openEditStockModal = function(id) {
+      const item = window.appState.items.find(i => String(i.id) === String(id));
+      if (!item) return;
+
+      document.getElementById('editStockProductId').value = item.id;
+      document.getElementById('editStockProductNameInput').value = item.name;
+      document.getElementById('editStockQty').value = item.quantity;
+      document.getElementById('editStockReason').value = '';
+      document.getElementById('editStockModal').classList.remove('hidden');
+    }
+
+    window.closeEditStockModal = function() {
+      document.getElementById('editStockModal').classList.add('hidden');
+    }
+
+    window.handleEditStockSubmit = function(e) {
+      e.preventDefault();
+      const id = document.getElementById('editStockProductId').value;
+      const newName = document.getElementById('editStockProductNameInput').value.trim();
+      const newQty = parseInt(document.getElementById('editStockQty').value);
+      const reason = document.getElementById('editStockReason').value.trim();
+
+      if (!newName || isNaN(newQty) || newQty < 0) {
+        showToast('Preencha um nome e quantidade válidos!', 'error');
+        return;
+      }
+
+      const item = window.appState.items.find(i => String(i.id) === String(id));
+      if (!item) {
+        showToast('Item não encontrado.', 'error');
+        return;
+      }
+
+      const oldName = item.name;
+      const oldQty = item.quantity;
+      const qtyDiff = newQty - oldQty;
+
+      item.name = newName;
+      item.quantity = newQty;
+
+      saveItemsToCloud();
+
+      const detailsText = `Alterado de "${oldName}" (${oldQty} un) para "${newName}" (${newQty} un). ${reason ? 'Motivo: ' + reason : ''}`;
+      addLog('AJUSTE', item.name, qtyDiff, detailsText);
+
+      renderAll();
+      window.closeEditStockModal();
+      showToast(`Equipamento "${item.name}" atualizado com sucesso!`, 'success');
+    }
+
+    window.confirmDeleteProduct = function(id) {
+      const item = window.appState.items.find(i => String(i.id) === String(id));
+      if (!item) return;
+
+      requestAdminAuth(`Excluir o equipamento "${item.name}" do cadastro.`, () => {
+        window.appState.items = window.appState.items.filter(i => String(i.id) !== String(id));
+        saveItemsToCloud();
+        addLog('EXCLUSAO', item.name, 0, 'Cadastro do equipamento removido do sistema');
+        renderAll();
+        showToast(`Equipamento "${item.name}" foi excluído.`, 'success');
+      });
+    }
+
+    window.confirmClearLogs = function() {
+      if (window.appState.logs.length === 0) {
+        showToast('O histórico já está vazio.', 'info');
+        return;
+      }
+
+      requestAdminAuth('Limpar todo o histórico de logs de operações.', () => {
+        window.appState.logs = [];
+        saveLogsToCloud();
+        addLog('LIMPEZA_LOG', 'Sistema', 0, 'Histórico de logs foi totalmente limpo pelo Admin');
+        renderLogsTable();
+        showToast('Histórico de logs foi limpo com sucesso!', 'success');
+      });
+    }
+
+    window.handleChangePassword = function(e) {
+      e.preventDefault();
+      const currentPass = document.getElementById('currentPasswordInput').value;
+      const newPass = document.getElementById('newPasswordInput').value;
+      const confirmPass = document.getElementById('confirmNewPasswordInput').value;
+
+      if (currentPass !== window.appState.adminPassword) {
+        showToast('A senha atual do administrador está incorreta!', 'error');
+        return;
+      }
+
+      if (newPass !== confirmPass) {
+        showToast('A nova senha e a confirmação não coincidem!', 'error');
+        return;
+      }
+
+      if (newPass.length < 4) {
+        showToast('A nova senha deve ter no mínimo 4 caracteres.', 'error');
+        return;
+      }
+
+      savePasswordToCloud(newPass);
+      document.getElementById('changePasswordForm').reset();
+      showToast('Senha de administrador salva!', 'success');
+      addLog('AJUSTE', 'Segurança', 0, 'Senha de Administrador alterada');
+    }
+
+    // --- AUTENTICAÇÃO E MODAL DE ADMIN ---
+    function requestAdminAuth(description, callback) {
+      window.appState.pendingAdminCallback = callback;
+      document.getElementById('adminAuthDescription').textContent = description;
+      document.getElementById('adminPasswordInput').value = '';
+      document.getElementById('adminAuthModal').classList.remove('hidden');
+      setTimeout(() => document.getElementById('adminPasswordInput').focus(), 100);
+    }
+
+    window.closeAdminAuthModal = function() {
+      window.appState.pendingAdminCallback = null;
+      document.getElementById('adminAuthModal').classList.add('hidden');
+    }
+
+    window.handleAdminAuthSubmit = function(e) {
+      e.preventDefault();
+      const inputPass = document.getElementById('adminPasswordInput').value;
+
+      if (inputPass === window.appState.adminPassword) {
+        const callback = window.appState.pendingAdminCallback;
+        window.closeAdminAuthModal();
+        if (callback) callback();
+      } else {
+        showToast('Senha de Administrador incorreta!', 'error');
+        document.getElementById('adminPasswordInput').value = '';
+        document.getElementById('adminPasswordInput').focus();
+      }
+    }
+
+    // --- NOTIFICAÇÕES TOAST ---
+    function showToast(message, type = 'info') {
+      const container = document.getElementById('toastContainer');
+      const toast = document.createElement('div');
+      
+      let bgColors = 'bg-slate-800 text-white';
+      let icon = 'fa-info-circle';
+
+      if (type === 'success') {
+        bgColors = 'bg-emerald-600 text-white';
+        icon = 'fa-circle-check';
+      } else if (type === 'error') {
+        bgColors = 'bg-rose-600 text-white';
+        icon = 'fa-circle-exclamation';
+      } else if (type === 'info') {
+        bgColors = 'bg-brand-600 text-white';
+        icon = 'fa-bell';
+      }
+
+      toast.className = `pointer-events-auto flex items-center space-x-3 px-4 py-3 rounded-xl shadow-lg ${bgColors} text-xs font-semibold transform transition-all duration-300 translate-y-2 opacity-0`;
+      toast.innerHTML = `<i class="fa-solid ${icon} text-base"></i><span>${escapeHTML(message)}</span>`;
+
+      container.appendChild(toast);
+
+      setTimeout(() => {
+        toast.classList.remove('translate-y-2', 'opacity-0');
+      }, 10);
+
+      setTimeout(() => {
+        toast.classList.add('opacity-0', 'translate-y-2');
+        setTimeout(() => toast.remove(), 300);
+      }, 3500);
+    }
+
+    function escapeHTML(str) {
+      return String(str)
+        .replace(/&/g, '&amp;')
+        .replace(/</g, '&lt;')
+        .replace(/>/g, '&gt;')
+        .replace(/"/g, '&quot;');
+    }
+  </script>
+</body>
+</html>
